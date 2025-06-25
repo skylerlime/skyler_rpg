@@ -165,7 +165,7 @@ BATTLE_STATUS performRound(entity* hero, entity* enemy) {
         int magicIndex = magic(hero->mp, hero->spells);
         if (magicIndex != -1) {
             spell chosenSpell = hero->spells.at(magicIndex);
-            cout << "You casted " << chosenSpell.name << "!\n";cout << "You casted " << chosenSpell.name << "!\n";
+            cout << "You casted " << chosenSpell.name << "!\n";
             int magicDamage = calculateAttackDamage(chosenSpell.power, enemy->defense);
             delayAction(1);
             cout << "The dragon took " << magicDamage << " damage!\n";
