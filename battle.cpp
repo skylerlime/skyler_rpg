@@ -116,7 +116,7 @@ int itemSelection(vector<item> items) {
     for (item i : items) {
         cout << i.name;
         if (i.healthRestored > 0) cout << " (Heals " << i.healthRestored << " HP";
-        if (i.magicRestored > 0) cout << ", Restores " << i.magicRestored << "MP";
+        if (i.magicRestored > 0) cout << ", Restores " << i.magicRestored << " MP";
         cout << ")\n";
     }
 
