@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/sprites/command_menu.png</file>
+        <file>assets/sprites/dragon.png</file>
+        <file>assets/sprites/hero_stats.png</file>
+        <file>assets/sprites/hyzfbno2nmmc1.gif</file>
+        <file>assets/music/battle.wav</file>
+        <file>assets/music/lose.wav</file>
+        <file>assets/music/victory.wav</file>
+        <file>assets/dragon-quest.otf</file>
+        <file>assets/music/crit.wav</file>
+        <file>assets/music/hit.wav</file>
+        <file>assets/music/item.wav</file>
+        <file>assets/music/select.wav</file>
+        <file>assets/music/spell.wav</file>
+    </qresource>
+</RCC>
