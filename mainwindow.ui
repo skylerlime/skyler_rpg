@@ -59,7 +59,8 @@
     </property>
     <property name="styleSheet">
      <string notr="true">background-color: transparent;
-border: none;</string>
+border: none;
+color: white;</string>
     </property>
     <property name="text">
      <string>Attack</string>
@@ -81,7 +82,8 @@ border: none;</string>
     </property>
     <property name="styleSheet">
      <string notr="true">background-color: transparent;
-border: none;</string>
+border: none;
+color: white;</string>
     </property>
     <property name="text">
      <string>Magic</string>
@@ -103,7 +105,8 @@ border: none;</string>
     </property>
     <property name="styleSheet">
      <string notr="true">background-color: transparent;
-border: none;</string>
+border: none;
+color: white;</string>
     </property>
     <property name="text">
      <string>Item</string>
@@ -125,7 +128,8 @@ border: none;</string>
     </property>
     <property name="styleSheet">
      <string notr="true">background-color: transparent;
-border: none;</string>
+border: none;
+color: white;</string>
     </property>
     <property name="text">
      <string>Flee</string>
