@@ -84,13 +84,44 @@ void MainWindow::showMainMenu() {
     ui->messageLabel->clear();
 }
 
-void MainWindow::showNarrationOnly(const QString& message) {
+void MainWindow::showNarrationOnly(const QString& message, std::function<void()> onComplete) {
     ui->attackButton->hide();
     ui->magicButton->hide();
     ui->itemButton->hide();
     ui->fleeButton->hide();
     ui->selectionList->hide();
-    ui->messageLabel->setText(message);
+
+    printTextScroll(message, onComplete);
+}
+
+void MainWindow::printTextScroll(const QString& message, std::function<void()> onComplete) {
+    currentNarration.clear();
+    ui->messageLabel->clear();
+
+    static QTimer* scrollTimer = nullptr;
+    int* index = new int(0);
+
+    if (scrollTimer) {
+        scrollTimer->stop();
+        delete scrollTimer;
+    }
+
+    scrollTimer = new QTimer(this);
+    scrollTimer->setInterval(25);
+
+    connect(scrollTimer, &QTimer::timeout, this, [=]() mutable {
+        if (*index < message.length()) {
+            currentNarration += message[*index];
+            ui->messageLabel->setText(currentNarration);
+            (*index)++;
+        } else {
+            scrollTimer->stop();
+            delete index;
+            if (onComplete) QTimer::singleShot(2000, this, onComplete);
+        }
+    });
+
+    scrollTimer->start();
 }
 
 void MainWindow::showSelectionMenu(const QString& menu) {
@@ -130,11 +161,11 @@ void MainWindow::attackClicked() {
 
     isCrit ? critSfx->play() : attackSfx->play();
 
-    showNarrationOnly(isCrit
+    showNarrationOnly(
+    isCrit
         ? QString("Critical hit! You dealt %1 damage!").arg(dmg)
-        : QString("You dealt %1 damage!").arg(dmg));
-
-    QTimer::singleShot(1500, this, [this]() {
+        : QString("You dealt %1 damage!").arg(dmg),
+    [this]() {
         if (enemy.health <= 0) {
             status = BATTLE_STATUS::WIN;
             battleOver();
@@ -184,13 +215,10 @@ void MainWindow::selectionClicked(QListWidgetItem* item) {
     if (currentMenu == "spells") {
         const spell& chosenSpell = hero.spells[index];
         if (chosenSpell.cost > hero.mp) {
-            showNarrationOnly("Not enough MP!");
-            
-            QTimer::singleShot(1500, this, [this]() {
+            showNarrationOnly("Not enough MP!", [this]() {
                 showMainMenu();
                 updateUI();
             });
-
             return;
         }
 
@@ -202,19 +230,18 @@ void MainWindow::selectionClicked(QListWidgetItem* item) {
         hero.mp -= chosenSpell.cost;
         spellSfx->play();
 
-        showNarrationOnly(isCrit
-            ? QString("Critical spell! %1 deals %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg)
-            : QString("You cast %1 and dealt %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg));
-
-        QTimer::singleShot(1500, this, [this]() {
-            if (enemy.health <= 0) {
-                status = BATTLE_STATUS::WIN;
-                battleOver();
-            } else {
-                QTimer::singleShot(500, this, &MainWindow::enemyTurn);
-            }
-            updateUI();
-        });
+        showNarrationOnly(
+            isCrit ? QString("Critical spell! %1 deals %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg)
+                   : QString("You cast %1 and dealt %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg),
+            [this]() {
+                if (enemy.health <= 0) {
+                    status = BATTLE_STATUS::WIN;
+                    battleOver();
+                } else {
+                    QTimer::singleShot(500, this, &MainWindow::enemyTurn);
+                }
+                updateUI();
+            });
 
     } else if (currentMenu == "items") {
         ::item& chosenItem = hero.items[index];
@@ -230,18 +257,20 @@ void MainWindow::selectionClicked(QListWidgetItem* item) {
         playerTurn = false;
         updateUI();
         itemSfx->play();
-        showNarrationOnly(QString("You used %1!").arg(QString::fromStdString(chosenItem.name)));
-
-        QTimer::singleShot(1500, this, &MainWindow::enemyTurn);
+        showNarrationOnly(QString("You used %1!").arg(QString::fromStdString(chosenItem.name)), [this]() {
+            QTimer::singleShot(500, this, &MainWindow::enemyTurn);
+        });
     }
 }
 
 void MainWindow::fleeClicked() {
     selectSfx->play();
     status = BATTLE_STATUS::LOSE;
-    showNarrationOnly("You fled from battle... for some reason.");
-    QTimer::singleShot(5000, this, []() {
-        QApplication::quit();
+
+    showNarrationOnly("You fled from battle... for some reason.", [this]() {
+        QTimer::singleShot(5000, this, []() {
+            QApplication::quit();
+        });
     });
 }
 
@@ -249,6 +278,7 @@ void MainWindow::enemyTurn() {
     if (enemy.health <= 0 || hero.health <= 0) return;
 
     bool usedSpell = false;
+    QString message;
     if (!enemy.spells.empty() && (rand() % 2) == 1) {
         std::vector<spell> usableSpells;
         for (const auto& s : enemy.spells)
@@ -262,9 +292,9 @@ void MainWindow::enemyTurn() {
             enemy.mp -= chosen.cost;
             spellSfx->play();
 
-            ui->messageLabel->setText(isCrit
+            message = isCrit
                 ? QString("Critical spell! The dragon casts %1 and deals %2 damage!").arg(QString::fromStdString(chosen.name)).arg(dmg)
-                : QString("The dragon casts %1 and deals %2 damage!").arg(QString::fromStdString(chosen.name)).arg(dmg));
+                : QString("The dragon casts %1 and deals %2 damage!").arg(QString::fromStdString(chosen.name)).arg(dmg);
             usedSpell = true;
         }
     }
@@ -272,12 +302,12 @@ void MainWindow::enemyTurn() {
         auto [dmg, isCrit] = calculateAttackDamage(enemy.offense, hero.defense);
         hero.health -= dmg;
         isCrit ? critSfx->play() : attackSfx->play();
-        ui->messageLabel->setText(isCrit
+        message = isCrit
             ? QString("Critical hit! The dragon deals %1 damage!").arg(dmg)
-            : QString("The dragon attacks and deals %1 damage!").arg(dmg));
+            : QString("The dragon attacks and deals %1 damage!").arg(dmg);
     }
 
-    QTimer::singleShot(1500, this, [this]() {
+    showNarrationOnly(message, [this]() {
         if (hero.health <= 0) {
             status = BATTLE_STATUS::LOSE;
             hero.health = 0;
@@ -295,10 +325,10 @@ void MainWindow::battleOver() {
     player->setLoops(1);
     if (status == BATTLE_STATUS::WIN) {
         ui->dragon->hide();
-        ui->messageLabel->setText("The dragon was defeated!");
+        printTextScroll("The dragon was defeated!");
         player->setSource(QUrl("qrc:/assets/music/victory.wav"));
     } else {
-        ui->messageLabel->setText("You were defeated...");
+        printTextScroll("You were defeated...");
         player->setSource(QUrl("qrc:/assets/music/lose.wav"));
     }
     player->play();
