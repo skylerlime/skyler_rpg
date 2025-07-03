@@ -245,10 +245,16 @@ void MainWindow::selectionClicked(QListWidgetItem* item) {
 
     } else if (currentMenu == "items") {
         ::item& chosenItem = hero.items[index];
-        if (chosenItem.healthRestored > 0)
+        QString msg = QString("You used %1!").arg(QString::fromStdString(chosenItem.name));
+
+        if (chosenItem.healthRestored > 0) {
             hero.health = std::min(hero.health + chosenItem.healthRestored, hero.maxHealth);
-        if (chosenItem.magicRestored > 0)
+            msg += QString("\nRestored %1 HP.").arg(chosenItem.healthRestored);
+        }
+        if (chosenItem.magicRestored > 0) {
             hero.mp = std::min(hero.mp + chosenItem.magicRestored, hero.maxMp);
+            msg += QString("\nRestored %1 MP.").arg(chosenItem.magicRestored);
+        }
 
         chosenItem.quantity--;
         if (chosenItem.quantity <= 0)
@@ -257,7 +263,8 @@ void MainWindow::selectionClicked(QListWidgetItem* item) {
         playerTurn = false;
         updateUI();
         itemSfx->play();
-        showNarrationOnly(QString("You used %1!").arg(QString::fromStdString(chosenItem.name)), [this]() {
+
+        showNarrationOnly(msg, [this]() {
             QTimer::singleShot(500, this, &MainWindow::enemyTurn);
         });
     }
