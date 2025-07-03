@@ -83,6 +83,12 @@ private:
     void showMainMenu();
     void showNarrationOnly(const QString& message, std::function<void()> onComplete);
     void printTextScroll(const QString& message, std::function<void()> onComplete = nullptr);
+    void animateStatChange(
+        int& statCurrent,
+        int statOld,
+        int statNew,
+        std::function<void()> onComplete = nullptr
+        );
     void showSelectionMenu(const QString& menu);
     float randomFloat(float min, float max);
     std::pair<int, bool> calculateAttackDamage(int attackerOffense, int attackedDefense);

@@ -124,6 +124,41 @@ void MainWindow::printTextScroll(const QString& message, std::function<void()> o
     scrollTimer->start();
 }
 
+void MainWindow::animateStatChange(
+    int& statCurrent,
+    int statOld,
+    int statNew,
+    std::function<void()> onComplete
+) {
+    QTimer* animTimer = new QTimer(this);
+    animTimer->setInterval(50);
+
+    auto currentVal = new int(statOld);
+    int targetVal = statNew;
+    int* statPtr = &statCurrent;
+
+    connect(animTimer, &QTimer::timeout, this, [=]() mutable {
+        if (*currentVal == targetVal) {
+            animTimer->stop();
+            animTimer->deleteLater();
+            delete currentVal;
+
+            if (onComplete)
+                onComplete();
+
+            return;
+        }
+
+        if (*currentVal < targetVal) ++(*currentVal);
+        else if (*currentVal > targetVal) --(*currentVal);
+
+        *statPtr = *currentVal;
+        updateUI();
+    });
+
+    animTimer->start();
+}
+
 void MainWindow::showSelectionMenu(const QString& menu) {
     ui->selectionList->clear();
 
@@ -211,6 +246,8 @@ void MainWindow::selectionClicked(QListWidgetItem* item) {
     }
 
     int index = ui->selectionList->row(item);
+    int oldMp = hero.mp;
+    int newMp = hero.mp;
 
     if (currentMenu == "spells") {
         const spell& chosenSpell = hero.spells[index];
@@ -226,46 +263,56 @@ void MainWindow::selectionClicked(QListWidgetItem* item) {
         updateUI();
 
         auto [dmg, isCrit] = calculateAttackDamage(chosenSpell.power, enemy.defense);
-        enemy.health -= dmg;
-        hero.mp -= chosenSpell.cost;
+
+        int oldMp = hero.mp;
+        int newMp = hero.mp - chosenSpell.cost;
+        int oldHealth = enemy.health;
+        int newHealth = enemy.health - dmg;
+
         spellSfx->play();
 
-        showNarrationOnly(
-            isCrit ? QString("Critical spell! %1 deals %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg)
-                   : QString("You cast %1 and dealt %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg),
-            [this]() {
-                if (enemy.health <= 0) {
-                    status = BATTLE_STATUS::WIN;
-                    battleOver();
-                } else {
-                    QTimer::singleShot(500, this, &MainWindow::enemyTurn);
-                }
-                updateUI();
+        animateStatChange(hero.mp, oldMp, newMp, [=]() {
+            animateStatChange(enemy.health, oldHealth, newHealth, [=]() {
+                showNarrationOnly(
+                    isCrit ? QString("Critical spell! %1 deals %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg)
+                        : QString("You cast %1 and dealt %2 damage!").arg(QString::fromStdString(chosenSpell.name)).arg(dmg),
+                    [this]() {
+                        if (enemy.health <= 0) {
+                            status = BATTLE_STATUS::WIN;
+                            battleOver();
+                        } else {
+                            QTimer::singleShot(500, this, &MainWindow::enemyTurn);
+                        }
+                        updateUI();
+                    });
             });
-
+        });
     } else if (currentMenu == "items") {
         ::item& chosenItem = hero.items[index];
-        QString msg = QString("You used %1!").arg(QString::fromStdString(chosenItem.name));
 
-        if (chosenItem.healthRestored > 0) {
-            hero.health = std::min(hero.health + chosenItem.healthRestored, hero.maxHealth);
-            msg += QString("\nRestored %1 HP.").arg(chosenItem.healthRestored);
-        }
-        if (chosenItem.magicRestored > 0) {
-            hero.mp = std::min(hero.mp + chosenItem.magicRestored, hero.maxMp);
-            msg += QString("\nRestored %1 MP.").arg(chosenItem.magicRestored);
-        }
+        int oldHealth = hero.health;
+        int newHealth = std::min(hero.health + chosenItem.healthRestored, hero.maxHealth);
+        newMp = std::min(hero.mp + chosenItem.magicRestored, hero.maxMp);
 
         chosenItem.quantity--;
         if (chosenItem.quantity <= 0)
             hero.items.erase(hero.items.begin() + index);
 
         playerTurn = false;
-        updateUI();
         itemSfx->play();
 
-        showNarrationOnly(msg, [this]() {
-            QTimer::singleShot(500, this, &MainWindow::enemyTurn);
+        animateStatChange(hero.health, oldHealth, newHealth, [=]() {
+            animateStatChange(hero.mp, oldMp, newMp, [=]() {
+                QString msg = QString("You used %1!").arg(QString::fromStdString(chosenItem.name));
+                if (newHealth > oldHealth)
+                    msg += QString("\nRestored %1 HP.").arg(newHealth - oldHealth);
+                if (newMp > oldMp)
+                    msg += QString("\nRestored %1 MP.").arg(newMp - oldMp);
+
+                showNarrationOnly(msg, [this]() {
+                    QTimer::singleShot(500, this, &MainWindow::enemyTurn);
+                });
+            });
         });
     }
 }
@@ -286,6 +333,8 @@ void MainWindow::enemyTurn() {
 
     bool usedSpell = false;
     QString message;
+    int oldHealth = hero.health;
+
     if (!enemy.spells.empty() && (rand() % 2) == 1) {
         std::vector<spell> usableSpells;
         for (const auto& s : enemy.spells)
@@ -302,6 +351,7 @@ void MainWindow::enemyTurn() {
             message = isCrit
                 ? QString("Critical spell! The dragon casts %1 and deals %2 damage!").arg(QString::fromStdString(chosen.name)).arg(dmg)
                 : QString("The dragon casts %1 and deals %2 damage!").arg(QString::fromStdString(chosen.name)).arg(dmg);
+
             usedSpell = true;
         }
     }
@@ -314,16 +364,19 @@ void MainWindow::enemyTurn() {
             : QString("The dragon attacks and deals %1 damage!").arg(dmg);
     }
 
-    showNarrationOnly(message, [this]() {
-        if (hero.health <= 0) {
-            status = BATTLE_STATUS::LOSE;
-            hero.health = 0;
-            battleOver();
-        } else {
-            playerTurn = true;
-            showMainMenu();
-        }
-        updateUI();
+    int newHealth = std::max(hero.health, 0);
+    animateStatChange(hero.health, oldHealth, newHealth, [=]() {
+        showNarrationOnly(message, [this]() {
+            if (hero.health <= 0) {
+                status = BATTLE_STATUS::LOSE;
+                hero.health = 0;
+                battleOver();
+            } else {
+                playerTurn = true;
+                showMainMenu();
+            }
+            updateUI();
+        });
     });
 }
 
